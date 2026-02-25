@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "aicompanion2_0",
+  "version": "1.0.0",
+  "name": "AI Companion 2.0",
+  "description": "AI Chatbot powered by Ollama",
+  "authors": ["Du"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/aicompanion2_0/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "AiCompanion.aicompanion2_0.Aicompanion2_0"
+    ]
+  },
+  "mixins": [],
+  "depends": {
+    "fabricloader": ">=0.14.0",
+    "fabric-api": "*",
+    "minecraft": "~1.20.1",
+    "java": ">=17"
+  }
+}
