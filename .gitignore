@@ -42,4 +42,4 @@ replay_*.log
 
 temp/
 
-*config/
+config/
