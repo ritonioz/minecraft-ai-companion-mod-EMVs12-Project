@@ -12,9 +12,14 @@
   "entrypoints": {
     "main": [
       "AiCompanion.aicompanion2_0.Aicompanion2_0"
+    ],
+    "client": [
+      "AiCompanion.aicompanion2_0.client.AiCompanionClient"
     ]
   },
-  "mixins": [],
+  "mixins": [
+    "aicompanion2_0.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.14.0",
     "fabric-api": "*",
