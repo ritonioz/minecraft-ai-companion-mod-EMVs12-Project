@@ -137,6 +137,8 @@ public class Aicompanion2_0 implements ModInitializer {
         System.out.println("[" + MOD_ID + "] MOD GELADEN!");
     }
 
+    // Innerhalb deiner Klasse Aicompanion2_0
+
     private String callOllama(String prompt) throws Exception {
         String json = "{\"model\":\"" + jsonEscape(MODEL) + "\",\"messages\":[{\"role\":\"user\",\"content\":\""
             + jsonEscape(prompt) + "\"}],\"stream\":false}";
