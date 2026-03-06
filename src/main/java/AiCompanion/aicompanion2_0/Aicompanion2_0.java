@@ -94,13 +94,13 @@ public class Aicompanion2_0 implements ModInitializer {
                             return 1;
                         })
                     )
-                    // /ai frage <frage>
-                    .then(CommandManager.literal("frage")
-                        .then(CommandManager.argument("frage", StringArgumentType.greedyString())
+                    // /ai question <question>
+                    .then(CommandManager.literal("question")
+                        .then(CommandManager.argument("question", StringArgumentType.greedyString())
                             .executes(ctx -> {
                                 var player = ctx.getSource().getPlayer();
                                 var server = ctx.getSource().getServer();
-                                String frage = StringArgumentType.getString(ctx, "frage");
+                                String frage = StringArgumentType.getString(ctx, "question");
 
                                 if (player != null) {
                                     player.sendMessage(
@@ -122,7 +122,7 @@ public class Aicompanion2_0 implements ModInitializer {
                                         if (player != null) {
                                             String error = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
                                             server.execute(() -> player.sendMessage(
-                                                Text.literal("§c[AI] Fehler bei /ai frage: " + error), false));
+                                                Text.literal("§c[AI] Fehler bei /ai question: " + error), false));
                                         }
                                     }
                                 }).start();
