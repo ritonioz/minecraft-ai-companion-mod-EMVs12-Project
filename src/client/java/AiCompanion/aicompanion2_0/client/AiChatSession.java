@@ -21,7 +21,7 @@ public class AiChatSession {
         this.apiBaseUrl = apiBaseUrl;
         this.apiKey = apiKey;
         this.model = model;
-        displayLines.add("§7Starte eine Unterhaltung mit deinem AI-Begleiter!");
+        displayLines.add("§7Start a conversation with your AI companion!");
     }
 
     public List<String> getDisplayLines() {
@@ -37,7 +37,7 @@ public class AiChatSession {
                 history.add(new String[]{"assistant", response});
                 onResponse.accept(response);
             } catch (Exception e) {
-                onResponse.accept("§cFehler: " + e.getMessage());
+                onResponse.accept("§cError: " + e.getMessage());
             }
         }).start();
     }
@@ -118,9 +118,9 @@ public class AiChatSession {
 
     private String formatHttpError(int status, String body, String path) {
         if (body == null || body.isBlank()) {
-            return "Fehler: HTTP " + status + " (" + path + ")";
+            return "Error: HTTP " + status + " (" + path + ")";
         }
-        return "Fehler: HTTP " + status + " (" + path + ") - " + body;
+        return "Error: HTTP " + status + " (" + path + ") - " + body;
     }
 
     private String jsonEscape(String value) {

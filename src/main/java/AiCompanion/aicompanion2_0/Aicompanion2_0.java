@@ -68,7 +68,7 @@ public class Aicompanion2_0 implements ModInitializer {
                                 companion.setOwner(player);
                                 companion.setTamed(true);
                                 player.getWorld().spawnEntity(companion);
-                                player.sendMessage(Text.literal("§6[AI] §fBegleiter wurde gerufen!"), false);
+                                player.sendMessage(Text.literal("§6[AI] §fThe companion has been called!"), false);
                             }
                             return 1;
                         })
@@ -90,7 +90,7 @@ public class Aicompanion2_0 implements ModInitializer {
 
                             final int removedCount = removed;
                             ctx.getSource().sendFeedback(
-                                () -> Text.literal("§6[AI] §fBegleiter entfernt: " + removedCount), false);
+                                () -> Text.literal("§6[AI] §fCompanion removed: " + removedCount), false);
                             return 1;
                         })
                     )
@@ -104,7 +104,7 @@ public class Aicompanion2_0 implements ModInitializer {
 
                                 if (player != null) {
                                     player.sendMessage(
-                                        Text.literal("§6[AI] §fDenke nach über: " + frage), false);
+                                        Text.literal("§6[AI] §fThink about: " + frage), false);
                                 }
 
                                 new Thread(() -> {
@@ -115,14 +115,14 @@ public class Aicompanion2_0 implements ModInitializer {
                                         if (player != null) {
                                             String finalAntwort = antwort;
                                             server.execute(() -> player.sendMessage(
-                                                Text.literal("§6[AI] §fAntwort: " + finalAntwort), false));
+                                                Text.literal("§6[AI] §fAnswer: " + finalAntwort), false));
                                         }
                                     } catch (Exception e) {
                                         e.printStackTrace();
                                         if (player != null) {
                                             String error = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
                                             server.execute(() -> player.sendMessage(
-                                                Text.literal("§c[AI] Fehler bei /ai question: " + error), false));
+                                                Text.literal("§c[AI] Error with /ai question: " + error), false));
                                         }
                                     }
                                 }).start();

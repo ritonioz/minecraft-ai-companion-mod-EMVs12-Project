@@ -29,18 +29,18 @@ public class AiChatScreen extends Screen {
     protected void init() {
         inputField = new TextFieldWidget(
             textRenderer, width / 2 - 150, height - 35, 270, 20,
-            Text.literal("Nachricht...")
+            Text.literal("Message...")
         );
         inputField.setMaxLength(500);
         inputField.setFocused(true);
         addDrawableChild(inputField);
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Senden"), btn -> sendMessage())
+        addDrawableChild(ButtonWidget.builder(Text.literal("Send"), btn -> sendMessage())
             .dimensions(width / 2 + 125, height - 35, 60, 20)
             .build()
         );
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Schließen"), btn -> close())
+        addDrawableChild(ButtonWidget.builder(Text.literal("Close"), btn -> close())
             .dimensions(width / 2 - 30, height - 10, 60, 15)
             .build()
         );
@@ -61,9 +61,9 @@ public class AiChatScreen extends Screen {
         inputField.setText("");
 
         displayLines().add("§eIch: §f" + msg);
-        displayLines().add("§7[AI denkt nach...]");
+        displayLines().add("§7[AI thinking about...]");
         session.sendMessage(msg, response -> {
-            displayLines().remove("§7[AI denkt nach...]");
+            displayLines().remove("§7[AI thinking about...]");
             displayLines().add("§6AI: §f" + response);
             // auto-scroll to bottom
             scrollOffset = 0;

@@ -13,7 +13,7 @@ public class ApiKeyScreen extends Screen {
     private final Runnable onSuccess;
 
     public ApiKeyScreen(Runnable onSuccess) {
-        super(Text.literal("API Key eingeben"));
+        super(Text.literal("Enter API Key"));
         this.onSuccess = onSuccess;
     }
 
@@ -27,7 +27,7 @@ public class ApiKeyScreen extends Screen {
         keyField.setFocused(true);
         addDrawableChild(keyField);
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Bestätigen"), btn -> confirm())
+        addDrawableChild(ButtonWidget.builder(Text.literal("Confirm"), btn -> confirm())
             .dimensions(width / 2 - 75, height / 2 + 20, 150, 20)
             .build()
         );
@@ -57,9 +57,9 @@ public class ApiKeyScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         renderBackground(context);
         context.drawCenteredTextWithShadow(textRenderer,
-            "§6Bitte gib deinen Open-WebUI API Key ein:", width / 2, height / 2 - 30, 0xFFFFFF);
+            "§6Please enter your Open WebUI API key:", width / 2, height / 2 - 30, 0xFFFFFF);
         context.drawCenteredTextWithShadow(textRenderer,
-            "§7(Wird lokal gespeichert, nur einmalig nötig)", width / 2, height / 2 - 20, 0xAAAAAA);
+            "§7(Stored locally, only required once.)", width / 2, height / 2 - 20, 0xAAAAAA);
         super.render(context, mouseX, mouseY, delta);
     }
 

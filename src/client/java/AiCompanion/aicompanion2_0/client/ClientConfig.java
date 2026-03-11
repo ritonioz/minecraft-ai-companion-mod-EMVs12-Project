@@ -33,7 +33,7 @@ public class ClientConfig {
                 apiKey = loadApiKeyFrom(CONFIG_PATH);
             }
         } catch (IOException e) {
-            System.out.println("[aicompanion2_0] Konnte Client-Config nicht laden.");
+            System.out.println("[aicompanion2_0] Could not load Client Config.");
         }
     }
 
@@ -42,7 +42,7 @@ public class ClientConfig {
             saveApiKeyTo(CONFIG_PATH, "AI Companion Client Config");
             saveApiKeyTo(SHARED_CONFIG_PATH, "AI Companion Shared Config");
         } catch (IOException e) {
-            System.out.println("[aicompanion2_0] Konnte Client-Config nicht speichern.");
+            System.out.println("[aicompanion2_0] Could not save Client Config.");
         }
     }
 
