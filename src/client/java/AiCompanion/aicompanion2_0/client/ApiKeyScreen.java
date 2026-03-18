@@ -13,7 +13,7 @@ public class ApiKeyScreen extends Screen {
     private final Runnable onSuccess;
 
     public ApiKeyScreen(Runnable onSuccess) {
-        super(Text.literal("Enter API Key"));
+        super(Text.literal("Enter API Key (available on ai.cametendo.org)"));
         this.onSuccess = onSuccess;
     }
 

@@ -11,7 +11,7 @@ public class ClientConfig {
     private static String apiKey = null;
 
     public static String getApiKey() {
-        if (apiKey == null) load();
+        load();
         return apiKey;
     }
 
@@ -20,8 +20,15 @@ public class ClientConfig {
         save();
     }
 
+    public static boolean deleteApiKey() throws IOException {
+        boolean deleted = deleteApiKeyFrom(SHARED_CONFIG_PATH, "AI Companion Shared Config");
+        deleted = deleteApiKeyFrom(CONFIG_PATH, "AI Companion Client Config") || deleted;
+        apiKey = null;
+        return deleted;
+    }
+
     public static boolean hasApiKey() {
-        if (apiKey == null) load();
+        load();
         return apiKey != null && !apiKey.isBlank();
     }
 
@@ -33,6 +40,7 @@ public class ClientConfig {
                 apiKey = loadApiKeyFrom(CONFIG_PATH);
             }
         } catch (IOException e) {
+            apiKey = null;
             System.out.println("[aicompanion2_0] Could not load Client Config.");
         }
     }
@@ -67,5 +75,24 @@ public class ClientConfig {
         try (FileOutputStream out = new FileOutputStream(path.toFile())) {
             props.store(out, comment);
         }
+    }
+
+    private static boolean deleteApiKeyFrom(Path path, String comment) throws IOException {
+        if (!Files.exists(path)) return false;
+
+        Properties props = new Properties();
+        try (FileInputStream in = new FileInputStream(path.toFile())) {
+            props.load(in);
+        }
+
+        String existingKey = props.getProperty("api.key", null);
+        if (existingKey == null || existingKey.isBlank()) return false;
+
+        props.remove("api.key");
+        Files.createDirectories(path.getParent());
+        try (FileOutputStream out = new FileOutputStream(path.toFile())) {
+            props.store(out, comment);
+        }
+        return true;
     }
 }

@@ -15,6 +15,8 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
 import net.minecraft.entity.EntityDimensions;
@@ -29,10 +31,17 @@ import net.minecraft.util.Identifier;
 public class Aicompanion2_0 implements ModInitializer {
 
     public static final String MOD_ID = "aicompanion2_0";
-    private static String API_BASE_URL = "https://ai.cametendo.org";
-    private static String MODEL = "minecraft-helper";
+    private static final String DEFAULT_API_BASE_URL = "https://ai.cametendo.org";
+    private static final String DEFAULT_MODEL = "minecraft-helper";
+    private static final String DEFAULT_API_PATH = "/api/chat/completions";
+    private static String API_BASE_URL = DEFAULT_API_BASE_URL;
+    private static String MODEL = DEFAULT_MODEL;
     private static String API_KEY = "";
-    private static String API_PATH = "/api/chat/completions";
+    private static String API_PATH = DEFAULT_API_PATH;
+    private static final Path SHARED_CONFIG_PATH = Path.of("config", "aicompanion2_0.properties");
+    private static final Path CLIENT_CONFIG_PATH = Path.of("config", "aicompanion2_0_client.properties");
+    public static final Identifier QUESTION_PACKET_ID = new Identifier(MOD_ID, "question");
+    public static final Identifier DELETE_KEY_PACKET_ID = new Identifier(MOD_ID, "delete_key");
 
     public static final EntityType<AIEntity> AI_COMPANION = Registry.register(
             Registries.ENTITY_TYPE,
@@ -94,6 +103,39 @@ public class Aicompanion2_0 implements ModInitializer {
                             return 1;
                         })
                     )
+                    // /ai delete-key
+                    .then(CommandManager.literal("delete-key")
+                        .executes(ctx -> {
+                            var player = ctx.getSource().getPlayer();
+                            if (player != null) {
+                                if (!ServerPlayNetworking.canSend(player, DELETE_KEY_PACKET_ID)) {
+                                    ctx.getSource().sendFeedback(
+                                        () -> Text.literal("§c[AI] delete-key requires the AI Companion client mod."), false);
+                                    return 0;
+                                }
+
+                                ServerPlayNetworking.send(player, DELETE_KEY_PACKET_ID, PacketByteBufs.create());
+                                return 1;
+                            }
+
+                            try {
+                                boolean deleted = deleteStoredApiKey();
+                                if (deleted) {
+                                    ctx.getSource().sendFeedback(
+                                        () -> Text.literal("§6[AI] §fAPI key deleted."), false);
+                                } else {
+                                    ctx.getSource().sendFeedback(
+                                        () -> Text.literal("§6[AI] §fno api key deleted: none found"), false);
+                                }
+                                return 1;
+                            } catch (IOException e) {
+                                String error = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                                ctx.getSource().sendFeedback(
+                                    () -> Text.literal("§c[AI] Could not delete API key: " + error), false);
+                                return 0;
+                            }
+                        })
+                    )
                     // /ai question <question>
                     .then(CommandManager.literal("question")
                         .then(CommandManager.argument("question", StringArgumentType.greedyString())
@@ -103,8 +145,16 @@ public class Aicompanion2_0 implements ModInitializer {
                                 String frage = StringArgumentType.getString(ctx, "question");
 
                                 if (player != null) {
-                                    player.sendMessage(
-                                        Text.literal("§6[AI] §fThink about: " + frage), false);
+                                    if (!ServerPlayNetworking.canSend(player, QUESTION_PACKET_ID)) {
+                                        ctx.getSource().sendFeedback(
+                                            () -> Text.literal("§c[AI] question requires the AI Companion client mod."), false);
+                                        return 0;
+                                    }
+
+                                    var buf = PacketByteBufs.create();
+                                    buf.writeString(frage);
+                                    ServerPlayNetworking.send(player, QUESTION_PACKET_ID, buf);
+                                    return 1;
                                 }
 
                                 new Thread(() -> {
@@ -140,33 +190,40 @@ public class Aicompanion2_0 implements ModInitializer {
     // Innerhalb deiner Klasse Aicompanion2_0
 
     private String callOllama(String prompt) throws Exception {
-        String json = "{\"model\":\"" + jsonEscape(MODEL) + "\",\"messages\":[{\"role\":\"user\",\"content\":\""
+        loadConfig();
+
+        String apiBaseUrl = API_BASE_URL;
+        String apiPath = API_PATH;
+        String model = MODEL;
+        String apiKey = API_KEY;
+
+        String json = "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":[{\"role\":\"user\",\"content\":\""
             + jsonEscape(prompt) + "\"}],\"stream\":false}";
 
-        HttpResult primary = postChatCompletion(API_PATH, json);
+        HttpResult primary = postChatCompletion(apiBaseUrl, apiPath, apiKey, json);
         if (primary.status == 200) {
             return extractAssistantContent(primary.body);
         }
 
         // Some deployments expose OpenAI-compatible chat under /v1/chat/completions.
-        if ((primary.status >= 500 || primary.status == 404) && !"/v1/chat/completions".equals(API_PATH)) {
-            HttpResult fallback = postChatCompletion("/v1/chat/completions", json);
+        if ((primary.status >= 500 || primary.status == 404) && !"/v1/chat/completions".equals(apiPath)) {
+            HttpResult fallback = postChatCompletion(apiBaseUrl, "/v1/chat/completions", apiKey, json);
             if (fallback.status == 200) {
                 return extractAssistantContent(fallback.body);
             }
             return formatHttpError(fallback.status, fallback.body, "/v1/chat/completions");
         }
 
-        return formatHttpError(primary.status, primary.body, API_PATH);
+        return formatHttpError(primary.status, primary.body, apiPath);
     }
 
-    private HttpResult postChatCompletion(String path, String json) throws Exception {
-        URL url = new URL(API_BASE_URL + path);
+    private HttpResult postChatCompletion(String apiBaseUrl, String path, String apiKey, String json) throws Exception {
+        URL url = new URL(apiBaseUrl + path);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-        if (API_KEY != null && !API_KEY.isBlank()) {
-            conn.setRequestProperty("Authorization", "Bearer " + API_KEY);
+        if (apiKey != null && !apiKey.isBlank()) {
+            conn.setRequestProperty("Authorization", "Bearer " + apiKey);
         }
         conn.setDoOutput(true);
 
@@ -230,36 +287,40 @@ public class Aicompanion2_0 implements ModInitializer {
         }
     }
 
-    private void loadConfig() {
+    private synchronized void loadConfig() {
+        API_BASE_URL = DEFAULT_API_BASE_URL;
+        API_PATH = DEFAULT_API_PATH;
+        MODEL = DEFAULT_MODEL;
+        API_KEY = "";
+
         try {
-            Path configPath = Path.of("config", "aicompanion2_0.properties");
-            Properties props = new Properties();
-            try (FileInputStream in = new FileInputStream(configPath.toFile())) {
-                props.load(in);
+            if (Files.exists(SHARED_CONFIG_PATH)) {
+                Properties props = new Properties();
+                try (FileInputStream in = new FileInputStream(SHARED_CONFIG_PATH.toFile())) {
+                    props.load(in);
+                }
+                API_BASE_URL = props.getProperty("api.baseUrl", DEFAULT_API_BASE_URL);
+                API_PATH     = props.getProperty("api.path", DEFAULT_API_PATH);
+                MODEL        = props.getProperty("api.model", DEFAULT_MODEL);
+                API_KEY      = props.getProperty("api.key", "").trim();
             }
-            API_BASE_URL = props.getProperty("api.baseUrl", API_BASE_URL);
-            API_PATH     = props.getProperty("api.path", API_PATH);
-            MODEL        = props.getProperty("api.model", MODEL);
-            API_KEY      = props.getProperty("api.key", API_KEY);
 
             if (API_KEY == null || API_KEY.isBlank()) {
-                String clientFallbackKey = readApiKeyFrom(Path.of("config", "aicompanion2_0_client.properties"));
+                String clientFallbackKey = readApiKeyFrom(CLIENT_CONFIG_PATH);
                 if (clientFallbackKey != null && !clientFallbackKey.isBlank()) {
                     API_KEY = clientFallbackKey;
                 }
             }
         } catch (IOException e) {
-            System.out.println("[" + MOD_ID + "] Keine Config gefunden, benutze Default-API.");
-
-            try {
-                String clientFallbackKey = readApiKeyFrom(Path.of("config", "aicompanion2_0_client.properties"));
-                if (clientFallbackKey != null && !clientFallbackKey.isBlank()) {
-                    API_KEY = clientFallbackKey;
-                }
-            } catch (IOException ignored) {
-                // Keep defaults when no config files are available.
-            }
+            System.out.println("[" + MOD_ID + "] Could not reload config, using defaults.");
         }
+    }
+
+    private boolean deleteStoredApiKey() throws IOException {
+        boolean deleted = deleteApiKeyFrom(SHARED_CONFIG_PATH, "AI Companion Shared Config");
+        deleted = deleteApiKeyFrom(CLIENT_CONFIG_PATH, "AI Companion Client Config") || deleted;
+        API_KEY = "";
+        return deleted;
     }
 
     private String readApiKeyFrom(Path configPath) throws IOException {
@@ -269,5 +330,24 @@ public class Aicompanion2_0 implements ModInitializer {
             props.load(in);
         }
         return props.getProperty("api.key", null);
+    }
+
+    private boolean deleteApiKeyFrom(Path configPath, String comment) throws IOException {
+        if (!Files.exists(configPath)) return false;
+
+        Properties props = new Properties();
+        try (FileInputStream in = new FileInputStream(configPath.toFile())) {
+            props.load(in);
+        }
+
+        String existingKey = props.getProperty("api.key", null);
+        if (existingKey == null || existingKey.isBlank()) return false;
+
+        props.remove("api.key");
+        Files.createDirectories(configPath.getParent());
+        try (OutputStream out = Files.newOutputStream(configPath)) {
+            props.store(out, comment);
+        }
+        return true;
     }
 }
