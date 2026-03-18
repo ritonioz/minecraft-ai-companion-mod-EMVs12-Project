@@ -5,6 +5,9 @@ import net.minecraft.entity.ai.goal.*;
 import net.minecraft.entity.ai.pathing.MobNavigation;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.data.DataTracker;
+import net.minecraft.entity.data.TrackedData;
+import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.passive.PassiveEntity;
 import net.minecraft.entity.passive.TameableEntity;
@@ -17,6 +20,9 @@ import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 
 public class AIEntity extends TameableEntity {
+    private static final TrackedData<Boolean> TUX_MODE =
+        DataTracker.registerData(AIEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+    private int tuxTicksRemaining = 0;
 
     public AIEntity(EntityType<? extends TameableEntity> entityType, World world) {
         super(entityType, world);
@@ -35,11 +41,30 @@ public class AIEntity extends TameableEntity {
     }
 
     @Override
+    protected void initDataTracker() {
+        super.initDataTracker();
+        this.dataTracker.startTracking(TUX_MODE, false);
+    }
+
+    @Override
     protected void initGoals() {
         this.goalSelector.add(1, new FollowOwnerGoal(this, 1.0, 5.0f, 2.0f, false));
         this.goalSelector.add(2, new WanderAroundFarGoal(this, 0.8));
         this.goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
         this.goalSelector.add(4, new LookAroundGoal(this));
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+
+        if (!this.getWorld().isClient() && tuxTicksRemaining > 0) {
+            tuxTicksRemaining--;
+
+            if (tuxTicksRemaining == 0) {
+                this.dataTracker.set(TUX_MODE, false);
+            }
+        }
     }
 
     @Override
@@ -73,6 +98,15 @@ public class AIEntity extends TameableEntity {
     @Override
     public PassiveEntity createChild(ServerWorld world, PassiveEntity entity) {
         return null;
+    }
+
+    public void activateTuxMode(int durationTicks) {
+        tuxTicksRemaining = Math.max(tuxTicksRemaining, durationTicks);
+        this.dataTracker.set(TUX_MODE, true);
+    }
+
+    public boolean isTuxMode() {
+        return this.dataTracker.get(TUX_MODE);
     }
 
     // Bridge method fix

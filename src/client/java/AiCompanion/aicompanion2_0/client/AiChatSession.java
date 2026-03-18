@@ -31,6 +31,13 @@ public class AiChatSession {
     public void sendMessage(String userMessage, Consumer<String> onResponse) {
         history.add(new String[]{"user", userMessage});
 
+        if (AiCompanionClient.tryTriggerArchEasterEgg(userMessage, response -> {
+            history.add(new String[]{"assistant", response});
+            onResponse.accept(response);
+        })) {
+            return;
+        }
+
         new Thread(() -> {
             try {
                 String response = callOpenWebUI();
