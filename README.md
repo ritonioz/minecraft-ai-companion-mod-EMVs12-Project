@@ -19,6 +19,7 @@ There are three commands included in this mod:
 - `/ai question`: This will let you communicate with the AI directly from the In-Game Chat
 - `/ai spawn`: This will spawn an actual entity, your 'Companion' (multiple companions can be spawned). It will follow you around and can be interacted with by right-clicking.
 - `/ai kill`: This will kill / remove all companions you spawned
+- `/ai delete-key`: This lets you delete your API-Key, incase you deleted your account on the WebUI or experience other problems, you can use this command to enter a new key.
 - Note: Depending on the question the AI will take 1 - 3 minutes to respond. Please be patient while your companion "thinks"!
 
 ## AI Companion Entity 
@@ -26,7 +27,7 @@ The AI Companion doesn't just stand around, he too has his own features:
 
 - `Chat-Window`: Right-clicking the Companion will open a chat window. In this, you will have a chat-interface that keeps your chat until you leave the world.
 - `Follows you`: Instead of just standing around, the companion will ffollow you around wherever you go and walk around the world.
-- `API-Key-Verification`: The first time you play this mod, you will need to use the companion to enter your API key.
+- `API-Key-Verification`: The first time you play this mod, you may need to use the companion to enter your API key.
 
 
 ## Installation
@@ -43,8 +44,9 @@ This mod requires an API key. To acquire an API key, follow these steps:
 2. Press your user profile (bottom-left corner) and switch to the tab "Account".
 3. Find the option "API Keys" and press show. A very long line of dots should appear. This is your API key (hidden by default).
 4. Copy it and start your game (or go back to it if it's already open)
-5. Use /ai spawn to spawn your companion. Once spawned, right-click him and a new window should appear (this is very important). In the newly appeared text-field, enter your API key and press enter.
-6. If everything worked, you can now send messages to the AI. Have fun!
+5. Use /ai question and enter a question. A new window with "Enter your Open-WebUI API-Key" should appear. In the text box, enter your API Key and confirm it by pressing enter.
+6. Alternatively, if that didn't work, use /ai spawn to spawn your AI Companion. THen right-click it and you should see the "Enter your Open-WebUI API-Key" window. Enter it into the text box and confirm it by pressing enter.
+7. If everything worked, you can now send messages to your AI Companion. Have fun!
 
 ## License & Credits
 * **Authors:** [Cametendo](https://www.github.com/Cametendo), [ritonioz](https://www.github.com/ritonioz), [Adam237A](https://www.github.com/Adam237A)
