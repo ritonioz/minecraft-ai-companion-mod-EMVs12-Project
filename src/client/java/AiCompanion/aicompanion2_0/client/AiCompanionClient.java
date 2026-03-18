@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.entity.BipedEntityRenderer;
 import net.minecraft.client.render.entity.model.EntityModelLayers;
@@ -15,10 +16,17 @@ import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Identifier;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.function.Consumer;
+
 public class AiCompanionClient implements ClientModInitializer {
+    private static final Identifier DEFAULT_TEXTURE = new Identifier("aicompanion2_0", "textures/entity/skin.png");
+    private static final Identifier TUX_TEXTURE = new Identifier("aicompanion2_0", "textures/entity/tux-mc.png");
 
     // One session per world load, shared across all right-clicks
     private static AiChatSession currentSession = null;
+    private static final Deque<Consumer<String>> pendingArchResponses = new ArrayDeque<>();
 
     @Override
     public void onInitializeClient() {
@@ -31,7 +39,7 @@ public class AiCompanionClient implements ClientModInitializer {
             ) {
                 @Override
                 public Identifier getTexture(AIEntity entity) {
-                    return new Identifier("aicompanion2_0", "textures/entity/skin.png");
+                    return entity.isTuxMode() ? TUX_TEXTURE : DEFAULT_TEXTURE;
                 }
             }
         );
@@ -64,6 +72,11 @@ public class AiCompanionClient implements ClientModInitializer {
             });
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(Aicompanion2_0.ARCH_EASTER_EGG_RESPONSE_PACKET_ID, (client, handler, buf, responseSender) -> {
+            String response = buf.readString(32767);
+            client.execute(() -> finishArchEasterEgg(response));
+        });
+
         // Open chat GUI on right-click
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (world.isClient() && entity instanceof AIEntity) {
@@ -87,6 +100,29 @@ public class AiCompanionClient implements ClientModInitializer {
         }
 
         action.run();
+    }
+
+    public static boolean tryTriggerArchEasterEgg(String message, Consumer<String> onResponse) {
+        if (!isArchEasterEggTrigger(message)) {
+            return false;
+        }
+
+        if (!ClientPlayNetworking.canSend(Aicompanion2_0.ARCH_EASTER_EGG_PACKET_ID)) {
+            onResponse.accept("§cError: The server does not support the Arch easter egg.");
+            return true;
+        }
+
+        pendingArchResponses.addLast(onResponse);
+
+        try {
+            ClientPlayNetworking.send(Aicompanion2_0.ARCH_EASTER_EGG_PACKET_ID, PacketByteBufs.create());
+        } catch (RuntimeException e) {
+            pendingArchResponses.pollLast();
+            String error = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            onResponse.accept("§cError: " + error);
+        }
+
+        return true;
     }
 
     private static void askQuestion(MinecraftClient client, String question) {
@@ -121,6 +157,20 @@ public class AiCompanionClient implements ClientModInitializer {
     private static void sendChatMessage(MinecraftClient client, Text message) {
         if (client.player != null) {
             client.player.sendMessage(message, false);
+        }
+    }
+
+    private static boolean isArchEasterEggTrigger(String message) {
+        String normalized = message.trim().replaceAll("\\s+", " ").toLowerCase();
+        return "i use arch btw".equals(normalized)
+            || "sudo".equals(normalized)
+            || normalized.startsWith("sudo ");
+    }
+
+    private static void finishArchEasterEgg(String response) {
+        Consumer<String> callback = pendingArchResponses.pollFirst();
+        if (callback != null) {
+            callback.accept(response);
         }
     }
 

@@ -9,7 +9,10 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Files;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 
@@ -22,9 +25,13 @@ import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
 import net.minecraft.entity.EntityDimensions;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnGroup;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -40,8 +47,14 @@ public class Aicompanion2_0 implements ModInitializer {
     private static String API_PATH = DEFAULT_API_PATH;
     private static final Path SHARED_CONFIG_PATH = Path.of("config", "aicompanion2_0.properties");
     private static final Path CLIENT_CONFIG_PATH = Path.of("config", "aicompanion2_0_client.properties");
+    private static final long ARCH_EASTER_EGG_COOLDOWN_MS = 15L * 60L * 1000L;
+    private static final int ARCH_EASTER_EGG_BUFF_DURATION_TICKS = 20 * 60;
+    private static final int ARCH_EASTER_EGG_TUX_DURATION_TICKS = 20 * 10;
+    private static final Map<UUID, Long> ARCH_EASTER_EGG_LAST_USED = new HashMap<>();
     public static final Identifier QUESTION_PACKET_ID = new Identifier(MOD_ID, "question");
     public static final Identifier DELETE_KEY_PACKET_ID = new Identifier(MOD_ID, "delete_key");
+    public static final Identifier ARCH_EASTER_EGG_PACKET_ID = new Identifier(MOD_ID, "arch_easter_egg");
+    public static final Identifier ARCH_EASTER_EGG_RESPONSE_PACKET_ID = new Identifier(MOD_ID, "arch_easter_egg_response");
 
     public static final EntityType<AIEntity> AI_COMPANION = Registry.register(
             Registries.ENTITY_TYPE,
@@ -61,6 +74,9 @@ public class Aicompanion2_0 implements ModInitializer {
         System.out.println("[" + MOD_ID + "] MOD STARTET!");
 
         FabricDefaultAttributeRegistry.register(AI_COMPANION, AIEntity.createMobAttributes());
+        ServerPlayNetworking.registerGlobalReceiver(ARCH_EASTER_EGG_PACKET_ID, (server, player, handler, buf, responseSender) ->
+            server.execute(() -> sendArchEasterEggResponse(player))
+        );
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             System.out.println("[" + MOD_ID + "] Registriere /ai command");
@@ -349,5 +365,50 @@ public class Aicompanion2_0 implements ModInitializer {
             props.store(out, comment);
         }
         return true;
+    }
+
+    private void sendArchEasterEggResponse(ServerPlayerEntity player) {
+        if (!ServerPlayNetworking.canSend(player, ARCH_EASTER_EGG_RESPONSE_PACKET_ID)) {
+            return;
+        }
+
+        String response = triggerArchEasterEgg(player);
+        var buf = PacketByteBufs.create();
+        buf.writeString(response);
+        ServerPlayNetworking.send(player, ARCH_EASTER_EGG_RESPONSE_PACKET_ID, buf);
+    }
+
+    private String triggerArchEasterEgg(ServerPlayerEntity player) {
+        long now = System.currentTimeMillis();
+        Long lastUsed = ARCH_EASTER_EGG_LAST_USED.get(player.getUuid());
+
+        if (lastUsed != null) {
+            long remainingMs = ARCH_EASTER_EGG_COOLDOWN_MS - (now - lastUsed);
+            if (remainingMs > 0) {
+                return "Optimization already complete. Cooldown remaining: " + formatCooldown(remainingMs) + ".";
+            }
+        }
+
+        ARCH_EASTER_EGG_LAST_USED.put(player.getUuid(), now);
+        player.addStatusEffect(new StatusEffectInstance(StatusEffects.SPEED, ARCH_EASTER_EGG_BUFF_DURATION_TICKS, 1));
+        player.addStatusEffect(new StatusEffectInstance(StatusEffects.HASTE, ARCH_EASTER_EGG_BUFF_DURATION_TICKS, 1));
+        activateTuxModeForOwnedCompanions(player);
+        return "Optimization complete. Bloatware removed.";
+    }
+
+    private void activateTuxModeForOwnedCompanions(ServerPlayerEntity player) {
+        for (ServerWorld world : player.getServer().getWorlds()) {
+            for (AIEntity companion : world.getEntitiesByType(AI_COMPANION, entity ->
+                player.getUuid().equals(entity.getOwnerUuid()))) {
+                companion.activateTuxMode(ARCH_EASTER_EGG_TUX_DURATION_TICKS);
+            }
+        }
+    }
+
+    private String formatCooldown(long remainingMs) {
+        long totalSeconds = Math.max(1, (remainingMs + 999) / 1000);
+        long minutes = totalSeconds / 60;
+        long seconds = totalSeconds % 60;
+        return minutes + "m " + seconds + "s";
     }
 }
