@@ -2,7 +2,10 @@ package AiCompanion.aicompanion2_0.client;
 
 import AiCompanion.aicompanion2_0.AIEntity;
 import AiCompanion.aicompanion2_0.Aicompanion2_0;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
@@ -177,9 +180,10 @@ public class AiCompanionClient implements ClientModInitializer {
     private static void openChatScreen(MinecraftClient client) {
         if (currentSession == null) {
             currentSession = new AiChatSession(
-                Aicompanion2_0.getApiBaseUrl(),
+                ClientConfig.getBaseUrl(),
                 ClientConfig.getApiKey(),
-                Aicompanion2_0.getModel()
+                ClientConfig.getModel(),
+                ClientConfig.getApiPath()
             );
         }
         client.setScreen(new AiChatScreen(currentSession));

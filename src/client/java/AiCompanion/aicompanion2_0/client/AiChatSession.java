@@ -12,12 +12,13 @@ public class AiChatSession {
     private final String apiBaseUrl;
     private final String apiKey;
     private final String model;
+    private final String apiPath; // null = auto-detect
 
     // OpenAI-format message history: alternating user/assistant
     private final List<String[]> history = new ArrayList<>(); // [role, content]
     private final List<String> displayLines = new ArrayList<>();
 
-    public AiChatSession(String apiBaseUrl, String apiKey, String model) {
+    public AiChatSession(String apiBaseUrl, String apiKey, String model, String apiPath) {
         this.apiBaseUrl = apiBaseUrl;
         this.apiKey = apiKey;
         this.model = model;
@@ -62,6 +63,15 @@ public class AiChatSession {
         messages.append("]");
 
         String json = "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":" + messages + ",\"stream\":false}";
+
+        if (apiPath != null) {
+            // User configured a specific path — use it directly, no fallback
+            HttpResult result = postChatCompletion(apiPath, json);
+            if (result.status == 200) return extractAssistantContent(result.body);
+            return formatHttpError(result.status, result.body, apiPath);
+        }
+
+        // Auto-detect: try /api/chat/completions, fall back to /v1/chat/completions
         HttpResult primary = postChatCompletion("/api/chat/completions", json);
         if (primary.status == 200) {
             return extractAssistantContent(primary.body);

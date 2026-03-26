@@ -8,7 +8,12 @@ public class ClientConfig {
 
     private static final Path CONFIG_PATH = Path.of("config", "aicompanion2_0_client.properties");
     private static final Path SHARED_CONFIG_PATH = Path.of("config", "aicompanion2_0.properties");
+
     private static String apiKey = null;
+    private static String baseUrl = null;
+    private static String model = null;
+    private static String apiPath = null;
+    private static boolean loaded = false;
 
     public static String getApiKey() {
         load();
@@ -32,12 +37,53 @@ public class ClientConfig {
         return apiKey != null && !apiKey.isBlank();
     }
 
+    public static String getBaseUrl() {
+        if (!loaded) load();
+        return baseUrl;
+    }
+
+    public static String getModel() {
+        if (!loaded) load();
+        return model;
+    }
+
+    public static String getApiPath() {
+        if (!loaded) load();
+        return apiPath;
+    }
+
+    public static boolean isSetupDone() {
+        if (!loaded) load();
+        return baseUrl != null && !baseUrl.isBlank() && model != null && !model.isBlank();
+    }
+
+    public static void setProviderConfig(String url, String mdl, String key, String path) {
+        baseUrl = url;
+        model = mdl;
+        apiKey = key != null ? key : "";
+        apiPath = (path != null && !path.isBlank()) ? path : null;
+        loaded = true;
+        save();
+    }
+
     private static void load() {
+        loaded = true;
         try {
-            // Prefer shared config so GUI and /ai frage use the same key source.
-            apiKey = loadApiKeyFrom(SHARED_CONFIG_PATH);
+            apiKey = loadProp(SHARED_CONFIG_PATH, "api.key");
             if (apiKey == null || apiKey.isBlank()) {
-                apiKey = loadApiKeyFrom(CONFIG_PATH);
+                apiKey = loadProp(CONFIG_PATH, "api.key");
+            }
+            baseUrl = loadProp(SHARED_CONFIG_PATH, "api.baseUrl");
+            if (baseUrl == null || baseUrl.isBlank()) {
+                baseUrl = loadProp(CONFIG_PATH, "api.baseUrl");
+            }
+            model = loadProp(SHARED_CONFIG_PATH, "api.model");
+            if (model == null || model.isBlank()) {
+                model = loadProp(CONFIG_PATH, "api.model");
+            }
+            apiPath = loadProp(SHARED_CONFIG_PATH, "api.path");
+            if (apiPath == null || apiPath.isBlank()) {
+                apiPath = loadProp(CONFIG_PATH, "api.path");
             }
         } catch (IOException e) {
             apiKey = null;
@@ -60,10 +106,19 @@ public class ClientConfig {
         try (FileInputStream in = new FileInputStream(path.toFile())) {
             props.load(in);
         }
-        return props.getProperty("api.key", null);
+        return props.getProperty(key, null);
     }
 
-    private static void saveApiKeyTo(Path path, String comment) throws IOException {
+    private static void save() {
+        try {
+            saveTo(CONFIG_PATH, "AI Companion Client Config");
+            saveTo(SHARED_CONFIG_PATH, "AI Companion Shared Config");
+        } catch (IOException e) {
+            System.out.println("[aicompanion2_0] Konnte Client-Config nicht speichern.");
+        }
+    }
+
+    private static void saveTo(Path path, String comment) throws IOException {
         Files.createDirectories(path.getParent());
         Properties props = new Properties();
         if (Files.exists(path)) {
@@ -72,6 +127,9 @@ public class ClientConfig {
             }
         }
         props.setProperty("api.key", apiKey != null ? apiKey : "");
+        if (baseUrl != null) props.setProperty("api.baseUrl", baseUrl);
+        if (model != null) props.setProperty("api.model", model);
+        if (apiPath != null) props.setProperty("api.path", apiPath);
         try (FileOutputStream out = new FileOutputStream(path.toFile())) {
             props.store(out, comment);
         }

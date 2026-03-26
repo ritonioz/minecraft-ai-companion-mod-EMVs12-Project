@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "aicompanion2_0",
-  "version": "1.0.0",
+  "version": "1.0.1+1.20.1",
   "name": "AI Companion 2.0",
   "description": "AI Chatbot powered by Ollama",
   "authors": ["Du"],
