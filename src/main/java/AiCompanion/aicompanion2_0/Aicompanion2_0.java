@@ -38,7 +38,7 @@ import net.minecraft.util.Identifier;
 public class Aicompanion2_0 implements ModInitializer {
 
     public static final String MOD_ID = "aicompanion2_0";
-    private static final String DEFAULT_API_BASE_URL = "https://ai.cametendo.org";
+    private static final String DEFAULT_API_BASE_URL = "https://ai.example.org";
     private static final String DEFAULT_MODEL = "minecraft-helper";
     private static final String DEFAULT_API_PATH = "/api/chat/completions";
     private static String API_BASE_URL = DEFAULT_API_BASE_URL;
@@ -53,6 +53,9 @@ public class Aicompanion2_0 implements ModInitializer {
     private static final Map<UUID, Long> ARCH_EASTER_EGG_LAST_USED = new HashMap<>();
     public static final Identifier QUESTION_PACKET_ID = new Identifier(MOD_ID, "question");
     public static final Identifier DELETE_KEY_PACKET_ID = new Identifier(MOD_ID, "delete_key");
+    public static final Identifier DELETE_CONFIG_PACKET_ID = new Identifier(MOD_ID, "delete_config");
+    public static final Identifier MODEL_SELECT_PACKET_ID = new Identifier(MOD_ID, "model_select");
+    public static final Identifier CHANGE_MODE_PACKET_ID = new Identifier(MOD_ID, "change_mode");
     public static final Identifier ARCH_EASTER_EGG_PACKET_ID = new Identifier(MOD_ID, "arch_easter_egg");
     public static final Identifier ARCH_EASTER_EGG_RESPONSE_PACKET_ID = new Identifier(MOD_ID, "arch_easter_egg_response");
 
@@ -150,6 +153,54 @@ public class Aicompanion2_0 implements ModInitializer {
                                     () -> Text.literal("§c[AI] Could not delete API key: " + error), false);
                                 return 0;
                             }
+                        })
+                    )
+                    // /ai delete-config
+                    .then(CommandManager.literal("delete-config")
+                        .executes(ctx -> {
+                            var player = ctx.getSource().getPlayer();
+                            if (player != null) {
+                                if (!ServerPlayNetworking.canSend(player, DELETE_CONFIG_PACKET_ID)) {
+                                    ctx.getSource().sendFeedback(
+                                        () -> Text.literal("§c[AI] delete-config requires the AI Companion client mod."), false);
+                                    return 0;
+                                }
+                                ServerPlayNetworking.send(player, DELETE_CONFIG_PACKET_ID, PacketByteBufs.create());
+                                return 1;
+                            }
+                            return 0;
+                        })
+                    )
+                    // /ai model
+                    .then(CommandManager.literal("model")
+                        .executes(ctx -> {
+                            var player = ctx.getSource().getPlayer();
+                            if (player != null) {
+                                if (!ServerPlayNetworking.canSend(player, MODEL_SELECT_PACKET_ID)) {
+                                    ctx.getSource().sendFeedback(
+                                        () -> Text.literal("§c[AI] model command requires the AI Companion client mod."), false);
+                                    return 0;
+                                }
+                                ServerPlayNetworking.send(player, MODEL_SELECT_PACKET_ID, PacketByteBufs.create());
+                                return 1;
+                            }
+                            return 0;
+                        })
+                    )
+                    // /ai change-mode
+                    .then(CommandManager.literal("change-mode")
+                        .executes(ctx -> {
+                            var player = ctx.getSource().getPlayer();
+                            if (player != null) {
+                                if (!ServerPlayNetworking.canSend(player, CHANGE_MODE_PACKET_ID)) {
+                                    ctx.getSource().sendFeedback(
+                                        () -> Text.literal("§c[AI] change-mode requires the AI Companion client mod."), false);
+                                    return 0;
+                                }
+                                ServerPlayNetworking.send(player, CHANGE_MODE_PACKET_ID, PacketByteBufs.create());
+                                return 1;
+                            }
+                            return 0;
                         })
                     )
                     // /ai question <question>

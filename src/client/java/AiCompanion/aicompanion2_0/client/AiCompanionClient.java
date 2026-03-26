@@ -2,10 +2,7 @@ package AiCompanion.aicompanion2_0.client;
 
 import AiCompanion.aicompanion2_0.AIEntity;
 import AiCompanion.aicompanion2_0.Aicompanion2_0;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
@@ -54,7 +51,7 @@ public class AiCompanionClient implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(Aicompanion2_0.QUESTION_PACKET_ID, (client, handler, buf, responseSender) -> {
             String question = buf.readString(32767);
-            client.execute(() -> ensureApiKeyAndRun(client, () -> askQuestion(client, question)));
+            client.execute(() -> ensureSetupAndRun(client, () -> askQuestion(client, question)));
         });
 
         ClientPlayNetworking.registerGlobalReceiver(Aicompanion2_0.DELETE_KEY_PACKET_ID, (client, handler, buf, responseSender) -> {
@@ -75,6 +72,30 @@ public class AiCompanionClient implements ClientModInitializer {
             });
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(Aicompanion2_0.DELETE_CONFIG_PACKET_ID, (client, handler, buf, responseSender) -> {
+            client.execute(() -> {
+                currentSession = null;
+                try {
+                    ClientConfig.deleteConfig();
+                    sendChatMessage(client, Text.literal("§6[AI] §fConfig deleted. Run any AI command to set it up again."));
+                } catch (Exception e) {
+                    String error = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                    sendChatMessage(client, Text.literal("§c[AI] Could not delete config: " + error));
+                }
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(Aicompanion2_0.MODEL_SELECT_PACKET_ID, (client, handler, buf, responseSender) -> {
+            client.execute(() -> {
+                currentSession = null;
+                client.setScreen(new ModelSelectScreen());
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(Aicompanion2_0.CHANGE_MODE_PACKET_ID, (client, handler, buf, responseSender) -> {
+            client.execute(() -> client.setScreen(new ModeSelectScreen()));
+        });
+
         ClientPlayNetworking.registerGlobalReceiver(Aicompanion2_0.ARCH_EASTER_EGG_RESPONSE_PACKET_ID, (client, handler, buf, responseSender) -> {
             String response = buf.readString(32767);
             client.execute(() -> finishArchEasterEgg(response));
@@ -85,23 +106,22 @@ public class AiCompanionClient implements ClientModInitializer {
             if (world.isClient() && entity instanceof AIEntity) {
                 MinecraftClient client = MinecraftClient.getInstance();
 
-                client.execute(() -> ensureApiKeyAndRun(client, () -> openChatScreen(client)));
+                client.execute(() -> ensureSetupAndRun(client, () -> openChatScreen(client)));
                 return ActionResult.SUCCESS;
             }
             return ActionResult.PASS;
         });
     }
 
-    private static void ensureApiKeyAndRun(MinecraftClient client, Runnable action) {
-        if (!ClientConfig.hasApiKey()) {
+    private static void ensureSetupAndRun(MinecraftClient client, Runnable action) {
+        if (!ClientConfig.isSetupDone()) {
             currentSession = null;
-            client.setScreen(new ApiKeyScreen(() -> {
+            client.setScreen(new ProviderSetupScreen(() -> {
                 currentSession = null;
                 action.run();
             }));
             return;
         }
-
         action.run();
     }
 
@@ -132,9 +152,10 @@ public class AiCompanionClient implements ClientModInitializer {
         sendChatMessage(client, Text.literal("§6[AI] §fThink about: " + question));
 
         AiChatSession session = new AiChatSession(
-            Aicompanion2_0.getApiBaseUrl(),
+            ClientConfig.getBaseUrl(),
             ClientConfig.getApiKey(),
-            Aicompanion2_0.getModel()
+            ClientConfig.getModel(),
+            ClientConfig.getApiPath()
         );
 
         session.sendMessage(question, response -> client.execute(() -> {

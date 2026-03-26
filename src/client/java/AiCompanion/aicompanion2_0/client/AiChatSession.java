@@ -2,6 +2,7 @@ package AiCompanion.aicompanion2_0.client;
 
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,7 @@ public class AiChatSession {
         this.apiBaseUrl = apiBaseUrl;
         this.apiKey = apiKey;
         this.model = model;
+        this.apiPath = (apiPath != null && !apiPath.isBlank()) ? apiPath : null;
         displayLines.add("§7Start a conversation with your AI companion!");
     }
 
@@ -51,23 +53,17 @@ public class AiChatSession {
     }
 
     private String callOpenWebUI() throws Exception {
-        // Build messages array
-        StringBuilder messages = new StringBuilder("[");
-        for (int i = 0; i < history.size(); i++) {
-            String[] msg = history.get(i);
-            messages.append("{\"role\":\"").append(msg[0])
-                    .append("\",\"content\":\"").append(jsonEscape(msg[1]))
-                    .append("\"}");
-            if (i < history.size() - 1) messages.append(",");
-        }
-        messages.append("]");
-
-        String json = "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":" + messages + ",\"stream\":false}";
+        String json = buildChatRequestJson(false);
 
         if (apiPath != null) {
             // User configured a specific path — use it directly, no fallback
             HttpResult result = postChatCompletion(apiPath, json);
             if (result.status == 200) return extractAssistantContent(result.body);
+            if (shouldRetryWithoutSystemPrompt(result)) {
+                HttpResult retry = postChatCompletion(apiPath, buildChatRequestJson(true));
+                if (retry.status == 200) return extractAssistantContent(retry.body);
+                return formatHttpError(retry.status, retry.body, apiPath);
+            }
             return formatHttpError(result.status, result.body, apiPath);
         }
 
@@ -77,10 +73,27 @@ public class AiChatSession {
             return extractAssistantContent(primary.body);
         }
 
+        if (shouldRetryWithoutSystemPrompt(primary)) {
+            HttpResult retry = postChatCompletion("/api/chat/completions", buildChatRequestJson(true));
+            if (retry.status == 200) {
+                return extractAssistantContent(retry.body);
+            }
+            if (retry.status < 500 && retry.status != 404) {
+                return formatHttpError(retry.status, retry.body, "/api/chat/completions");
+            }
+        }
+
         if (primary.status >= 500 || primary.status == 404) {
             HttpResult fallback = postChatCompletion("/v1/chat/completions", json);
             if (fallback.status == 200) {
                 return extractAssistantContent(fallback.body);
+            }
+            if (shouldRetryWithoutSystemPrompt(fallback)) {
+                HttpResult retry = postChatCompletion("/v1/chat/completions", buildChatRequestJson(true));
+                if (retry.status == 200) {
+                    return extractAssistantContent(retry.body);
+                }
+                return formatHttpError(retry.status, retry.body, "/v1/chat/completions");
             }
             return formatHttpError(fallback.status, fallback.body, "/v1/chat/completions");
         }
@@ -88,8 +101,74 @@ public class AiChatSession {
         return formatHttpError(primary.status, primary.body, "/api/chat/completions");
     }
 
+    private String buildChatRequestJson(boolean inlineSystemPrompt) {
+        String messages = buildMessagesJson(inlineSystemPrompt);
+        return "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":" + messages + ",\"stream\":false}";
+    }
+
+    private String buildMessagesJson(boolean inlineSystemPrompt) {
+        String systemPrompt = buildSystemPrompt();
+        StringBuilder messages = new StringBuilder("[");
+
+        if (inlineSystemPrompt) {
+            appendHistoryWithInlinePrompt(messages, systemPrompt);
+        } else {
+            messages.append("{\"role\":\"system\",\"content\":\"").append(jsonEscape(systemPrompt)).append("\"}");
+            for (String[] msg : history) {
+                messages.append(",{\"role\":\"").append(msg[0])
+                        .append("\",\"content\":\"").append(jsonEscape(msg[1]))
+                        .append("\"}");
+            }
+        }
+
+        messages.append("]");
+        return messages.toString();
+    }
+
+    private void appendHistoryWithInlinePrompt(StringBuilder messages, String systemPrompt) {
+        boolean first = true;
+        boolean injected = false;
+
+        for (String[] msg : history) {
+            String role = msg[0];
+            String content = msg[1];
+
+            if (!injected && "user".equals(role)) {
+                content = systemPrompt + "\n\nUser message: " + content;
+                injected = true;
+            }
+
+            if (!first) {
+                messages.append(",");
+            }
+
+            messages.append("{\"role\":\"").append(role)
+                    .append("\",\"content\":\"").append(jsonEscape(content))
+                    .append("\"}");
+            first = false;
+        }
+
+        if (!injected) {
+            messages.append("{\"role\":\"user\",\"content\":\"")
+                    .append(jsonEscape(systemPrompt))
+                    .append("\"}");
+        }
+    }
+
+    private boolean shouldRetryWithoutSystemPrompt(HttpResult result) {
+        if (result.status != 400 || result.body == null || result.body.isBlank()) {
+            return false;
+        }
+
+        String normalized = result.body.toLowerCase();
+        return normalized.contains("developer instruction")
+                || normalized.contains("system instruction")
+                || normalized.contains("system_message")
+                || normalized.contains("system message");
+    }
+
     private HttpResult postChatCompletion(String path, String json) throws Exception {
-        URL url = new URL(apiBaseUrl + path);
+        URL url = URI.create(apiBaseUrl + path).toURL();
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
@@ -138,6 +217,16 @@ public class AiChatSession {
             return "Error: HTTP " + status + " (" + path + ")";
         }
         return "Error: HTTP " + status + " (" + path + ") - " + body;
+    }
+
+    private String buildSystemPrompt() {
+        if ("minecraft".equals(ClientConfig.getMode())) {
+            return "You are a Minecraft-focused AI assistant. Always respond in the exact same language as the user's message. " +
+                   "Only answer Minecraft-related questions. If the user asks about anything unrelated to Minecraft, " +
+                   "respond in their language that you are only programmed to answer Minecraft-specific questions.";
+        }
+        return "You are a helpful AI companion. Always respond in the exact same language as the user's message. " +
+               "If the user writes in romanized text (e.g. Japanese romaji), also include a translation in square brackets in English.";
     }
 
     private String jsonEscape(String value) {
